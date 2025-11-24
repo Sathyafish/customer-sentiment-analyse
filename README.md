@@ -162,6 +162,20 @@ The Step Functions state machine follows this flow:
    - If **POSITIVE/NEUTRAL**: Completes successfully
 7. **SNS Publish**: Sends formatted notification email
 
+## Workflow Diagrams
+
+### Negative Review Workflow
+
+When a negative sentiment is detected, the workflow triggers an SNS notification:
+
+![Negative Review Workflow](Screenshot%202025-11-23%20at%207.48.59%20PM.png)
+
+### Positive Review Workflow
+
+When a positive or neutral sentiment is detected, the workflow completes without sending a notification:
+
+![Positive Review Workflow](Screenshot%202025-11-23%20at%207.49.44%20PM.png)
+
 ## Variables
 
 | Variable | Description | Type | Default | Required |
