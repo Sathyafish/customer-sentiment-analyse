@@ -168,13 +168,13 @@ The Step Functions state machine follows this flow:
 
 When a negative sentiment is detected, the workflow triggers an SNS notification:
 
-![Negative Review Workflow](Screenshot%202025-11-23%20at%207.48.59%20PM.png)
+![Negative Review Workflow](Negative-Review.png)
 
 ### Positive Review Workflow
 
 When a positive or neutral sentiment is detected, the workflow completes without sending a notification:
 
-![Positive Review Workflow](Screenshot%202025-11-23%20at%207.49.44%20PM.png)
+![Positive Review Workflow](Positive-Review.png)
 
 ## Variables
 
