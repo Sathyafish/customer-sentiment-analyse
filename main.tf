@@ -5,104 +5,96 @@ resource "random_id" "randomID" {
 
 # Create an IAM role for the Step Functions state machine
 resource "aws_iam_role" "StateMachineRole" {
-  assume_role_policy = <<Role1
-{
-  "Version" : "2012-10-17",
-  "Statement" : [
-    {
-      "Effect" : "Allow",
-      "Principal" : {
-        "Service" : "states.amazonaws.com"
-      },
-      "Action" : "sts:AssumeRole"
-    }
-  ]
-}
-Role1
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "states.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
 }
 
 # Create an IAM role for API Gateway
 resource "aws_iam_role" "APIGWRole" {
-  assume_role_policy = <<Role2
-{
-  "Version" : "2012-10-17",
-  "Statement" : [
-    {
-      "Effect" : "Allow",
-      "Principal" : {
-        "Service" : "apigateway.amazonaws.com"
-      },
-      "Action" : "sts:AssumeRole"
-    }
-  ]
-}
-Role2
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "apigateway.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
 }
 
 # Create an IAM policy for the Step Functions state machine
 resource "aws_iam_policy" "StateMachinePolicy" {
-  policy = <<POLICY1
-{
-  "Version" : "2012-10-17",
-  "Statement" : [
-    {
-      "Effect" : "Allow",
-      "Action" : [
-        "xray:PutTraceSegments",
-        "xray:PutTelemetryRecords",
-        "xray:GetSamplingRules",
-        "xray:GetSamplingTargets",
-        "logs:CreateLogGroup",
-        "logs:CreateLogStream",
-        "logs:PutLogEvents",
-        "logs:CreateLogDelivery",
-        "logs:GetLogDelivery",
-        "logs:UpdateLogDelivery",
-        "logs:DeleteLogDelivery",
-        "logs:ListLogDeliveries",
-        "logs:PutResourcePolicy",
-        "logs:DescribeResourcePolicies",
-        "logs:DescribeLogGroups",
-        "cloudwatch:PutMetricData",
-        "comprehend:DetectSentiment"
-      ],
-      "Resource" : "*"
-    },
-    {
-        "Effect": "Allow",
-        "Action": [
-            "sns:Publish"
-        ],
-        "Resource": "${aws_sns_topic.NotificationTopic.arn}"
-    },
-    {
-        "Action": [
-            "dynamodb:PutItem"
-        ],
-        "Resource": "${aws_dynamodb_table.FormDataTable.arn}",
-        "Effect": "Allow"
-    }
-  ]
-}
-POLICY1
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "xray:PutTraceSegments",
+          "xray:PutTelemetryRecords",
+          "xray:GetSamplingRules",
+          "xray:GetSamplingTargets",
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:CreateLogDelivery",
+          "logs:GetLogDelivery",
+          "logs:UpdateLogDelivery",
+          "logs:DeleteLogDelivery",
+          "logs:ListLogDeliveries",
+          "logs:PutResourcePolicy",
+          "logs:DescribeResourcePolicies",
+          "logs:DescribeLogGroups",
+          "cloudwatch:PutMetricData",
+          "comprehend:DetectSentiment"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "sns:Publish"
+        ]
+        Resource = aws_sns_topic.NotificationTopic.arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem"
+        ]
+        Resource = aws_dynamodb_table.FormDataTable.arn
+      }
+    ]
+  })
 }
 
-# Create an IAM policy for API Gateway to write to create an EventBridge event
+# Create an IAM policy for API Gateway
 resource "aws_iam_policy" "APIGWPolicy" {
-  policy = <<POLICY2
-{
-  "Version" : "2012-10-17",
-  "Statement" : [
-    {
-      "Effect" : "Allow",
-      "Action" : [
-        "states:StartSyncExecution"
-      ],
-      "Resource" : "${aws_sfn_state_machine.sfn_state_machine.arn}"
-    }
-  ]
-}
-POLICY2
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "states:StartSyncExecution"
+        ]
+        Resource = aws_sfn_state_machine.sfn_state_machine.arn
+      }
+    ]
+  })
 }
 
 # Attach all the IAM policies to the equivalent roles
@@ -127,7 +119,7 @@ resource "aws_sns_topic_subscription" "NotificationTopicSub" {
   endpoint  = var.email
 }
 
-# Create a new DynamoDB table with all attributes and Indexes
+# Create a new DynamoDB table
 resource "aws_dynamodb_table" "FormDataTable" {
   name         = "FormDataTable-${random_id.randomID.id}"
   billing_mode = "PAY_PER_REQUEST"
@@ -178,16 +170,54 @@ data "template_file" "APIDefinitionFile" {
   }
 }
 
-# Create an API Gateway HTTP with integration with EventBridge
+# Create an API Gateway HTTP API
 resource "aws_apigatewayv2_api" "MyApiGatewayHTTPApi" {
   name          = "processFormExample-${random_id.randomID.id}"
   protocol_type = "HTTP"
   body          = data.template_file.APIDefinitionFile.rendered
 }
 
-# Create an API Gateway Stage with automatic deployment
+# Create CloudWatch Log Group for API Gateway
+resource "aws_cloudwatch_log_group" "api_gateway_logs" {
+  name              = "/aws/apigateway/processFormExample-${random_id.randomID.id}"
+  retention_in_days = 7
+}
+
+# Create an API Gateway Stage with automatic deployment and logging
 resource "aws_apigatewayv2_stage" "MyApiGatewayHTTPApiStage" {
   api_id      = aws_apigatewayv2_api.MyApiGatewayHTTPApi.id
   name        = "$default"
   auto_deploy = true
+
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.api_gateway_logs.arn
+    format = jsonencode({
+      requestId      = "$context.requestId"
+      ip             = "$context.identity.sourceIp"
+      requestTime    = "$context.requestTime"
+      httpMethod     = "$context.httpMethod"
+      routeKey       = "$context.routeKey"
+      status         = "$context.status"
+      protocol       = "$context.protocol"
+      responseLength = "$context.responseLength"
+      errorMessage   = "$context.error.message"
+      integrationErrorMessage = "$context.integrationErrorMessage"
+    })
+  }
+}
+
+# Output the API Gateway URL
+output "api_gateway_url" {
+  value       = aws_apigatewayv2_api.MyApiGatewayHTTPApi.api_endpoint
+  description = "The URL of the API Gateway"
+}
+
+output "state_machine_arn" {
+  value       = aws_sfn_state_machine.sfn_state_machine.arn
+  description = "The ARN of the Step Functions state machine"
+}
+
+output "dynamodb_table_name" {
+  value       = aws_dynamodb_table.FormDataTable.name
+  description = "The name of the DynamoDB table"
 }
