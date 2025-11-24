@@ -1,40 +1,40 @@
 {
-    "Comment": "Customer review sentiment analyzer - analyzes customer reviews and sends SNS notification for negative sentiment",
-    "StartAt": "Check Message Field",
-    "States": {
-      "Check Message Field": {
-        "Type": "Choice",
-        "Choices": [
-          {
-            "Variable": "$.message",
-            "IsPresent": true,
-            "Next": "Normalize Message"
-          },
-          {
-            "Variable": "$.review",
-            "IsPresent": true,
-            "Next": "Normalize Review"
-          }
-        ],
-        "Default": "Normalize Message"
-      },
-      "Normalize Message": {
-        "Type": "Pass",
-        "Next": "Detect Sentiment",
-        "Parameters": {
-          "message.$": "$.message"
+  "Comment": "Customer review sentiment analyzer - analyzes customer reviews and sends SNS notification for negative sentiment",
+  "StartAt": "Check Message Field",
+  "States": {
+    "Check Message Field": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.message",
+          "IsPresent": true,
+          "Next": "Normalize Message"
         },
-        "ResultPath": "$.reviewData"
+        {
+          "Variable": "$.review",
+          "IsPresent": true,
+          "Next": "Normalize Review"
+        }
+      ],
+      "Default": "Normalize Message"
+    },
+    "Normalize Message": {
+      "Type": "Pass",
+      "Next": "Detect Sentiment",
+      "Parameters": {
+        "message.$": "$.message"
       },
-      "Normalize Review": {
-        "Type": "Pass",
-        "Next": "Detect Sentiment",
-        "Parameters": {
-          "message.$": "$.review"
-        },
-        "ResultPath": "$.reviewData"
+      "ResultPath": "$.reviewData"
+    },
+    "Normalize Review": {
+      "Type": "Pass",
+      "Next": "Detect Sentiment",
+      "Parameters": {
+        "message.$": "$.review"
       },
-      "Detect Sentiment": {
+      "ResultPath": "$.reviewData"
+    },
+    "Detect Sentiment": {
       "Type": "Task",
       "Next": "Generate Ticket ID",
       "Parameters": {
@@ -44,7 +44,7 @@
       "Resource": "arn:aws:states:::aws-sdk:comprehend:detectSentiment",
       "ResultPath": "$.SentimentResults"
     },
-      "Generate Ticket ID": {
+    "Generate Ticket ID": {
       "Type": "Pass",
       "Next": "Record Transaction",
       "ResultPath": "$.uuid",
@@ -52,75 +52,67 @@
         "ticketId.$": "States.UUID()"
       }
     },
-      "Record Transaction": {
-        "Type": "Task",
-        "Resource": "arn:aws:states:::dynamodb:putItem",
-        "Parameters": {
-          "TableName": "${DDBTable}",
-          "Item": {
-            "formId": {
-              "S.$": "$.uuid.ticketId"
-            },
-            "formData": {
-              "S.$": "States.JsonToString($.reviewData.message)"
-            },
-            "sentiment": {
-              "S.$": "States.JsonToString($.SentimentResults.Sentiment)"
-            }
-          }
-        },
-        "Retry": [
-          {
-            "ErrorEquals": [
-              "States.TaskFailed"
-            ],
-            "IntervalSeconds": 20,
-            "MaxAttempts": 5,
-            "BackoffRate": 10
-          }
-        ],
-        "ResultPath": "$.ddbPutResult",
-        "Next": "Good Or Bad?"
-      },
-      "Good Or Bad?": {
-        "Type": "Choice",
-        "Choices": [
-          {
-            "Variable": "$.SentimentResults.Sentiment",
-            "StringEquals": "NEGATIVE",
-            "Next": "Bad"
-          },
-          {
-            "Variable": "$.SentimentResults.Sentiment",
-            "StringEquals": "POSITIVE",
-            "Next": "Not Bad"
-          }
-        ],
-        "Default": "Not Bad"
-      },
-      "Not Bad": {
-        "Type": "Succeed",
-        "Comment": "Positive or neutral sentiment - no action needed"
-      },
-      "Bad": {
-        "Type": "Pass",
-        "Comment": "Negative sentiment detected - sending SNS notification",
-        "Next": "Format SNS Message"
-    },
-    "Format SNS Message": {
-      "Type": "Pass",
-      "Next": "SNS Publish",
+    "Record Transaction": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:putItem",
       "Parameters": {
-        "message.$": "States.Format('Negative Customer Review Detected\\n\\nTicket ID: {}\\n\\nReview Message: {}\\n\\nSentiment: {}', $.uuid.ticketId, $.reviewData.message, $.SentimentResults.Sentiment)"
+        "TableName": "${DDBTable}",
+        "Item": {
+          "formId": {
+            "S.$": "$.uuid.ticketId"
+          },
+          "formData": {
+            "S.$": "States.JsonToString($.reviewData.message)"
+          },
+          "sentiment": {
+            "S.$": "States.JsonToString($.SentimentResults.Sentiment)"
+          }
+        }
       },
-      "ResultPath": "$.notificationData"
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 20,
+          "MaxAttempts": 5,
+          "BackoffRate": 10
+        }
+      ],
+      "ResultPath": "$.ddbPutResult",
+      "Next": "Good Or Bad?"
+    },
+    "Good Or Bad?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.SentimentResults.Sentiment",
+          "StringEquals": "NEGATIVE",
+          "Next": "Bad"
+        },
+        {
+          "Variable": "$.SentimentResults.Sentiment",
+          "StringEquals": "POSITIVE",
+          "Next": "Not Bad"
+        }
+      ],
+      "Default": "Not Bad"
+    },
+    "Not Bad": {
+      "Type": "Succeed",
+      "Comment": "Positive or neutral sentiment - no action needed"
+    },
+    "Bad": {
+      "Type": "Pass",
+      "Comment": "Negative sentiment detected - sending SNS notification",
+      "Next": "SNS Publish"
     },
     "SNS Publish": {
       "Type": "Task",
       "Resource": "arn:aws:states:::sns:publish",
       "Parameters": {
         "TopicArn": "${TopicName}",
-        "Message.$": "$.notificationData.message",
+        "Message.$": "States.Format('Negative Customer Review Detected\n\nTicket ID: {}\n\nReview Message: {}\n\nSentiment: {}', $.uuid.ticketId, $.reviewData.message, $.SentimentResults.Sentiment)",
         "Subject": "Negative Customer Review Alert"
       },
       "ResultPath": "$.SNSOutput",
