@@ -111,10 +111,7 @@
       "Type": "Pass",
       "Next": "SNS Publish",
       "Parameters": {
-        "ticketId.$": "$.uuid.ticketId",
-        "reviewMessage.$": "$.reviewData.message",
-        "sentiment.$": "$.SentimentResults.Sentiment",
-        "sentimentScores.$": "$.SentimentResults.SentimentScore"
+        "message.$": "States.Format('Negative Customer Review Detected\\n\\nTicket ID: {}\\n\\nReview Message: {}\\n\\nSentiment: {}', $.uuid.ticketId, $.reviewData.message, $.SentimentResults.Sentiment)"
       },
       "ResultPath": "$.notificationData"
     },
@@ -123,7 +120,7 @@
       "Resource": "arn:aws:states:::sns:publish",
       "Parameters": {
         "TopicArn": "${TopicName}",
-        "Message.$": "States.Format('Negative Customer Review Detected\\n\\nTicket ID: {}\\n\\nReview Message: {}\\n\\nSentiment: {}\\n\\nSentiment Scores:\\n- Positive: {}\\n- Negative: {}\\n- Neutral: {}\\n- Mixed: {}', $.notificationData.ticketId, $.notificationData.reviewMessage, $.notificationData.sentiment, $.notificationData.sentimentScores.Positive, $.notificationData.sentimentScores.Negative, $.notificationData.sentimentScores.Neutral, $.notificationData.sentimentScores.Mixed)",
+        "Message.$": "$.notificationData.message",
         "Subject": "Negative Customer Review Alert"
       },
       "ResultPath": "$.SNSOutput",
